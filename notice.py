@@ -1,6 +1,8 @@
 from elasticsearch import Elasticsearch
 from redis import StrictRedis
 from redis.exceptions import ConnectionError
+from urllib3.exceptions import ProtocolError
+from http.client import RemoteDisconnected
 import pymysql
 import time
 import datetime
@@ -37,7 +39,7 @@ mysqldb.close()
 #print(SITE_TYPE_DICT)
 
 def etl_process(keyword):#,es_host,es_port,redis_host,redis_port):
-    es = Elasticsearch([{'host': ES_HOST, 'port': ES_PORT}])
+
     r = StrictRedis(host=REDIS_HOST, port=REDIS_PORT)
     #print(keyword[0])
     d = datetime.datetime.now(tz)
@@ -51,7 +53,7 @@ def etl_process(keyword):#,es_host,es_port,redis_host,redis_port):
             print(keyword + '_cache', r.zcard(keyword + '_cache'))
             break
         except (ConnectionError,OSError) as e:
-            print(i,e)
+            print(i, 'try redis:', e)
     body = {
         'query': {
             'bool': {
@@ -71,29 +73,40 @@ def etl_process(keyword):#,es_host,es_port,redis_host,redis_port):
         },
         'size': 1000
     }
-    result = es.search(index='crawler', body=body, request_timeout=30)
-    print(keyword,result['took'],result['hits']['total'])
+
+    for i in range(5):
+        try:
+            es = Elasticsearch([{'host': ES_HOST, 'port': ES_PORT}])
+            result = es.search(index='crawler', body=body, request_timeout=30)
+            print(keyword, result['took'], result['hits']['total'])
+            for item in result['hits']['hits']:
+                # print(item)
+                # msg = item['_source']
+                # content = dataprocess.delhtmltag(msg['content'])
+                # sentiment = dataanalysis.sentiment(content)
+                # msg['sentiment'] = sentiment
+                timescore = float(
+                    time.strftime('%Y%m%d%H%M%S', time.strptime(item['_source']['create_time'], '%Y_%m_%d_%H_%M_%S')))
+                jsonobj = {'content': item['_source'], 'type': SITE_TYPE_DICT[item['_type']]}
+                jsonobj['content']['_id'] = item['_id']
+                jsonstr = json.dumps(jsonobj)
+                print('zadd', jsonobj['content']['_id'], jsonobj['content']['time'], jsonobj['content']['create_time'],
+                      jsonobj['type'])
+                for i in range(5):
+                    try:
+                        r.zadd(keyword + '_cache', timescore, jsonstr)
+                        break
+                    except (ConnectionError, OSError) as e:
+                        print(i, 'try redis:', e)
+            break
+        except (ProtocolError, RemoteDisconnected, OSError) as e:
+            print(i, 'try elasticsearch:', e)
+
     #dataprocess = dataproana.DataPreprocess()
     #dataanalysis = dataproana.DataAnalysis()
     #print(keyword,'s',time.time())
     #p = r.pipeline()
-    for item in result['hits']['hits']:
-        # print(item)
-        #msg = item['_source']
-        #content = dataprocess.delhtmltag(msg['content'])
-        #sentiment = dataanalysis.sentiment(content)
-        #msg['sentiment'] = sentiment
-        timescore = float(time.strftime('%Y%m%d%H%M%S',time.strptime(item['_source']['create_time'],'%Y_%m_%d_%H_%M_%S')))
-        jsonobj = {'content':item['_source'],'type':SITE_TYPE_DICT[item['_type']]}
-        jsonobj['content']['_id'] = item['_id']
-        jsonstr = json.dumps(jsonobj)
-        print('zadd',jsonobj['content']['_id'],jsonobj['content']['time'],jsonobj['content']['create_time'],jsonobj['type'])
-        for i in range(5):
-            try:
-                r.zadd(keyword + '_cache', timescore, jsonstr)
-                break
-            except (ConnectionError,OSError) as e:
-                print(i, e)
+
         # print(r.zcard(keyword[0]+'_cache'))
     #p.execute()
     #print(keyword,'e',time.time())
@@ -118,3 +131,5 @@ while True :
         t.start()
     for t in threadList:
         t.join()
+    print('sleep 10s')
+    time.sleep(10)
