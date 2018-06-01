@@ -1,7 +1,8 @@
 from elasticsearch import Elasticsearch
 from redis import StrictRedis
-from redis.exceptions import ConnectionError
-from urllib3.exceptions import ProtocolError
+import redis.exceptions
+import elasticsearch.exceptions
+from urllib3.exceptions import ProtocolError,NewConnectionError
 from http.client import RemoteDisconnected
 import pymysql
 import time
@@ -96,10 +97,10 @@ def etl_process(keyword):#,es_host,es_port,redis_host,redis_port):
                     try:
                         r.zadd(keyword + '_cache', timescore, jsonstr)
                         break
-                    except (ConnectionError, OSError) as e:
+                    except (ConnectionError, redis.exceptions.ConnectionError, OSError) as e:
                         print(i, 'try redis:', e)
             break
-        except (ProtocolError, RemoteDisconnected, OSError) as e:
+        except (ProtocolError, RemoteDisconnected,ConnectionResetError,ConnectionError,NewConnectionError,elasticsearch.exceptions.ConnectionError,OSError) as e:
             print(i, 'try elasticsearch:', e)
 
     #dataprocess = dataproana.DataPreprocess()
@@ -131,5 +132,5 @@ while True :
         t.start()
     for t in threadList:
         t.join()
-    print('sleep 10s')
+    print('sleep 10s',flush=True)
     time.sleep(10)
