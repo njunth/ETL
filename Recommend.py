@@ -41,7 +41,7 @@ sqlcur = mysqldb.cursor()
 tableq = "SELECT DISTINCT t.table_name, n.SCHEMA_NAME FROM information_schema.TABLES t, information_schema.SCHEMATA n WHERE t.table_name = 'recommend_t' AND n.SCHEMA_NAME = 'woodpecker'"
 sqlcur.execute(tableq)
 if len(sqlcur.fetchall())==0:
-    sqlcur.execute("CREATE TABLE recommend_t(uid INT, date CHAR(19), words VARCHAR(200), PRIMARY KEY(uid, date))")
+    sqlcur.execute("CREATE TABLE recommend_t(uid INT, date CHAR(19), words VARCHAR(200), PRIMARY KEY (uid))")
     mysqldb.commit()
     print('CREATE TABLE recommend_t')
 
@@ -57,6 +57,17 @@ res = sqlcur.fetchall()
 for row in res:
     user_id.append(row[0])
 types = ['collectionAgency_','collectionForum_','collectionWeibo_','collectionPortal_']
+
+sqlcur.execute("SELECT name,count(*) FROM keyword_t GROUP BY name")
+res = sqlcur.fetchall()
+max_count = 0
+max_word = ''
+for row in res:
+    if row[1]>max_count:
+        max_word = row[0]
+print('max:',max_word)
+sqlcur.execute("REPLACE INTO recommend_t VALUES(0,'" + timestr_2 + "','" + max_word + "')")
+mysqldb.commit()
 
 for u in user_id:
     rec_words = ''
