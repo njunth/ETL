@@ -43,7 +43,7 @@ sqlcur.execute(tableq)
 if len(sqlcur.fetchall())==0:
     sqlcur.execute("CREATE TABLE recommend_t(uid INT, date CHAR(19), words VARCHAR(200), PRIMARY KEY (uid))")
     mysqldb.commit()
-    print('CREATE TABLE recommend_t')
+    print('CREATE TABLE recommend_t',flush=True)
 
 
 
@@ -65,7 +65,7 @@ max_word = ''
 for row in res:
     if row[1]>max_count:
         max_word = row[0]
-print('max:',max_word)
+print('max:',max_word,flush=True)
 sqlcur.execute("REPLACE INTO recommend_t VALUES(0,'" + timestr_2 + "','" + max_word + "')")
 mysqldb.commit()
 
@@ -114,7 +114,7 @@ for u in user_id:
             data_res = es.search(index='crawler', body=body, request_timeout=600)
             break
         except Exception as e:
-            print('try elasticsearch',es_i,e)
+            print('try elasticsearch',es_i,e,flush=True)
     data = []
     num_data_final = data_res['hits']['total'] if (data_res['hits']['total']<num_data) else num_data
     print(num_data_final)
@@ -257,7 +257,7 @@ for u in user_id:
         for word in words:
             rec_words += word[0]
             rec_words += ' '
-        print('content',len(words))
+        print('content',len(words),flush=True)
     # print('LDA')
     # scores = Similarity.avg_sim(user_doc_vec, data_vec)
     # scores_index = np.argsort(scores)[::-1]
@@ -400,11 +400,17 @@ for u in user_id:
 
     if len(key_set) > 0:
         w2vModel = w2v.w2vModel(data)
-        words = w2vModel.get_similar_words(pos_words=list(key_set))
+        key_list = []
+        for w2vkey in key_set:
+            if w2vModel.model.wv.__contains__(w2vkey):
+                key_list.append(w2vkey)
+            else:
+                print('false:',w2vkey,flush=True)
+        words = w2vModel.get_similar_words(pos_words=key_list)
         for word in words:
             rec_words += word[0]
             rec_words += ' '
-        print('key',len(words))
+        print('key',len(words),flush=True)
     sqlcur.execute("REPLACE INTO recommend_t VALUES(" + str(u) + ",'" + timestr_2 + "','" + rec_words + "')")
     mysqldb.commit()
 
