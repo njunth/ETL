@@ -45,7 +45,7 @@ if len(sqlcur.fetchall())==0:
     mysqldb.commit()
     print('CREATE TABLE recommend_t')
 
-es = Elasticsearch([{'host': ES_HOST, 'port': ES_PORT}])
+
 
 user_id = []
 #user_id.append(32)
@@ -109,6 +109,8 @@ for u in user_id:
     }
     for es_i in range(10):
         try:
+            print('trying ',es_i)
+            es = Elasticsearch([{'host': ES_HOST, 'port': ES_PORT}])
             data_res = es.search(index='crawler', body=body, request_timeout=600)
             break
         except Exception as e:
