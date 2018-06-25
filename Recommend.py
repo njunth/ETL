@@ -107,7 +107,12 @@ for u in user_id:
         # },
         'size': num_data
     }
-    data_res = es.search(index='crawler', body=body, request_timeout=100)
+    for es_i in range(10):
+        try:
+            data_res = es.search(index='crawler', body=body, request_timeout=600)
+            break
+        except Exception as e:
+            print('try elasticsearch',es_i,e)
     data = []
     num_data_final = data_res['hits']['total'] if (data_res['hits']['total']<num_data) else num_data
     print(num_data_final)
