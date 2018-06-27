@@ -145,7 +145,7 @@ class DataAnalysis:
 
     def predict(self,vecs):
         vecs = np.array(vecs)
-        return self.predict(vecs)
+        return self.clf.predict(vecs)
 
 
 danalysis = DataAnalysis()
