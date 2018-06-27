@@ -1,7 +1,6 @@
 elasticsearch==5.5.2
 PyMySQL==0.7.11
 redis==2.10.6
-snownlp==0.12.3
 pytz==2017.3
 numpy==1.13.3
 pytz==2017.3
@@ -9,3 +8,4 @@ gensim==3.4.0
 jieba==0.39
 pymysql==0.8.1
 scipy==1.1.0
+scikit-learn==0.19.1
