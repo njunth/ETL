@@ -2,7 +2,7 @@ from elasticsearch import Elasticsearch
 from redis import StrictRedis
 import redis.exceptions
 import elasticsearch.exceptions
-from urllib3.exceptions import ProtocolError,NewConnectionError
+import urllib3.exceptions
 from http.client import RemoteDisconnected
 import pymysql
 import time
@@ -23,12 +23,12 @@ MYSQL_PASSWD = os.getenv('MYSQL_PASSWD', 'crawl_nju903')
 MYSQL_DB = os.getenv('MYSQL_DB', 'woodpecker')
 
 tz = pytz.timezone('Asia/Shanghai')
-SITE_TYPES =['微博','门户网站','论坛','培训机构']
-SITE_TYPES_EN = ['weibo','portal','forum','agency']
+SITE_TYPES =['微博','门户网站','论坛','培训机构','商务资讯','行业动态']
+SITE_TYPES_EN = ['weibo','portal','forum','agency','business','industry']
 SITE_TYPE_DICT = {}
 mysqldb = pymysql.connect(host=MYSQL_HOST, port=MYSQL_PORT, user=MYSQL_USER, passwd=MYSQL_PASSWD, db=MYSQL_DB, charset='utf8')
 sqlcur = mysqldb.cursor()
-for i in range(4):
+for i in range(6):
     #print(i)
     sql = "SELECT tableName FROM site_t WHERE type = '"+SITE_TYPES[i]+"'"
     sqlcur.execute(sql)
@@ -37,7 +37,7 @@ for i in range(4):
         SITE_TYPE_DICT[site[0]] = SITE_TYPES_EN[i]
 sqlcur.close()
 mysqldb.close()
-#print(SITE_TYPE_DICT)
+print(SITE_TYPE_DICT)
 
 def etl_process(keyword):#,es_host,es_port,redis_host,redis_port):
 
@@ -48,13 +48,15 @@ def etl_process(keyword):#,es_host,es_port,redis_host,redis_port):
     d=d-delta
     timestr = d.strftime('%Y_%m_%d_%H_%M_%S')
     timedouble = float(d.strftime('%Y%m%d%H%M%S'))
+    print(keyword,'time',timestr)
     for i in range(5):
         try:
             r.zremrangebyscore(keyword+'_cache',0,timedouble)
             print(keyword + '_cache', r.zcard(keyword + '_cache'))
             break
-        except (ConnectionError,OSError) as e:
-            print(i, 'try redis:', e)
+        # except (ConnectionError,OSError) as e:
+        except Exception as e:
+            print(i, 'try redis rem:', e)
     body = {
         'query': {
             'bool': {
@@ -97,10 +99,12 @@ def etl_process(keyword):#,es_host,es_port,redis_host,redis_port):
                     try:
                         r.zadd(keyword + '_cache', timescore, jsonstr)
                         break
-                    except (ConnectionError, redis.exceptions.ConnectionError, OSError) as e:
-                        print(i, 'try redis:', e)
+                    # except (ConnectionError, redis.exceptions.ConnectionError, OSError) as e:
+                    except Exception as e:
+                        print(i, 'try redis add:', e)
             break
-        except (ProtocolError, RemoteDisconnected,ConnectionResetError,ConnectionError,NewConnectionError,elasticsearch.exceptions.ConnectionError,OSError) as e:
+        # except (urllib3.exceptions.ProtocolError, RemoteDisconnected,ConnectionResetError,ConnectionError,urllib3.exceptions.NewConnectionError,elasticsearch.exceptions.ConnectionError,OSError,Exception as e:
+        except Exception as e:
             print(i, 'try elasticsearch:', e)
 
     #dataprocess = dataproana.DataPreprocess()
