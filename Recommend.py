@@ -10,6 +10,7 @@ import datetime
 import pytz
 #import TFIDF
 import w2v
+import re
 
 ES_HOST = os.getenv('ES_HOST', '114.212.189.147')
 ES_PORT = int(os.getenv('ES_PORT', 10142))
@@ -65,10 +66,88 @@ max_word = ''
 for row in res:
     if row[1]>max_count:
         max_word = row[0]
-print('max:',max_word,flush=True)
+print('max:',max_word,max_count,flush=True)
 sqlcur.execute("REPLACE INTO recommend_t VALUES(0,'" + timestr_2 + "','" + max_word + "')")
 mysqldb.commit()
 
+print('keyword_recommend_t')
+for row in res:
+    keyword_rec = row[0]
+    print('keyword:',keyword_rec)
+    body = {
+        '_source': 'content',
+        'query': {
+            'bool': {
+                'must': {
+                    'match': {
+                        'content': keyword_rec
+                    }
+                },
+                'filter': {
+                    'term': {
+                        'sentiment': 1
+                    }
+                }
+            }
+        },
+        'size': num_data
+    }
+    for es_i in range(10):
+        try:
+            print('es trying ', es_i)
+            es = Elasticsearch([{'host': ES_HOST, 'port': ES_PORT}])
+            data_res = es.search(index='crawler', body=body, request_timeout=600)
+            print('es succeeded')
+            break
+        except Exception as e:
+            print('try elasticsearch', es_i, e, flush=True)
+
+    data = []
+    num_data_final = data_res['hits']['total'] if (data_res['hits']['total'] < num_data) else num_data
+    print(num_data_final)
+    if num_data_final <= 0:
+        continue
+    for row in data_res['hits']['hits']:
+        data.append(row['_source']['content'])
+
+    rec_words = ''
+    keyword_rec_split = jieba.cut_for_search(keyword_rec)
+    key_set = set()
+    key_set.add(keyword_rec)
+    for keyword_rec_split_i in keyword_rec_split:
+        key_set.add(keyword_rec_split_i)
+    w2vModel = w2v.w2vModel(data)
+    key_list = []
+    for w2vkey in key_set:
+        if w2vModel.model.wv.__contains__(w2vkey):
+            key_list.append(w2vkey)
+        else:
+            print('false:', w2vkey, flush=True)
+    words = w2vModel.get_similar_words(pos_words=key_list)
+    for word in words:
+        rec_words += word[0]
+        rec_words += ' '
+
+    lmodel = LDA.LDAModel(data,n_topics=100)
+    topicwords = lmodel.model.print_topics(num_topics=2,num_words=5)
+    wordsset = set()
+    for i in topicwords:
+        allwords = re.findall(r'".*?"',i[1])
+        for j in allwords:
+            jj = j.strip('"')
+            if keyword_rec != jj:
+                wordsset.add(jj)
+    for i in wordsset:
+        rec_words += i
+        rec_words += ' '
+    print(rec_words)
+    print('key', len(words), flush=True)
+    sqlcur.execute("REPLACE INTO keyword_recommend_t VALUES('" + str(keyword_rec) + "','" + timestr_2 + "','" + rec_words + "')")
+    mysqldb.commit()
+
+
+
+print('recommend_t')
 for u in user_id:
     rec_words = ''
     sql = "SELECT DISTINCT name FROM keyword_t WHERE userid = "+str(u)
@@ -109,9 +188,10 @@ for u in user_id:
     }
     for es_i in range(10):
         try:
-            print('trying ',es_i)
+            print('es trying ',es_i)
             es = Elasticsearch([{'host': ES_HOST, 'port': ES_PORT}])
             data_res = es.search(index='crawler', body=body, request_timeout=600)
+            print('es succeeded')
             break
         except Exception as e:
             print('try elasticsearch',es_i,e,flush=True)
