@@ -84,7 +84,7 @@ def etl_process(keyword):#,es_host,es_port,redis_host,redis_port):
     r = StrictRedis(host=REDIS_HOST, port=REDIS_PORT)
     #print(keyword[0])
     d = datetime.datetime.now(tz)
-    delta = datetime.timedelta(days=20)#,days=5)
+    delta = datetime.timedelta(seconds=20)#,days=5)
     d=d-delta
     timestr = d.strftime('%Y_%m_%d_%H_%M_%S')
     timedouble = float(d.strftime('%Y%m%d%H%M%S'))
@@ -152,7 +152,7 @@ def etl_process(keyword):#,es_host,es_port,redis_host,redis_port):
                 for i in range(5):
                     try:
                         r.zadd(keyword + '_cache', timescore, jsonstr)
-                        es.update(index='crawler', doc_type=jsonobj['type'], id=jsonobj['content']['_id'], body={
+                        es.update(index='crawler', doc_type=item['_type'], id=jsonobj['content']['_id'], body={
                             'doc': {
                                 'sentiment': jsonobj['content']['sentiment']
                             }
