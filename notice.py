@@ -15,9 +15,10 @@ import jieba
 import falconn
 import SIF_embedding
 import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
 
-ES_HOST = os.getenv('ES_HOST', '114.212.189.147')
-ES_PORT = int(os.getenv('ES_PORT', 10142))
+ES_HOST = os.getenv('ES_HOST', '114.212.189.141')
+ES_PORT = int(os.getenv('ES_PORT', 30011))
 REDIS_HOST = os.getenv('REDIS_HOST', '114.212.189.147')
 REDIS_PORT = int(os.getenv('REDIS_PORT', 10104))
 MYSQL_HOST = os.getenv('MYSQL_HOST', '114.212.189.147')
@@ -42,8 +43,11 @@ for r in res:
     row = ' '.join(jieba.cut(re.sub('<[^>]+>', '', r[0].lower().strip())))
     data.append(row)
 print('neg msg count:',len(data))
-sif_mod = SIF_embedding.SIF('webdict_with_freq.txt', 'sgns.weibo.bigram-char.txt')
-data_vec = sif_mod.get_sif_embedding(data)
+# sif_mod = SIF_embedding.SIF('webdict_with_freq.txt', 'sgns.weibo.bigram-char.txt')
+# data_vec = sif_mod.get_sif_embedding(data)
+tfidf_mod = TfidfVectorizer()
+data_vec = tfidf_mod.fit_transform(data).toarray()
+
 cen = np.mean(data_vec, axis=0)
 data_vec.astype(np.float32)
 data_vec -= cen
@@ -62,10 +66,11 @@ table = falconn.LSHIndex(params_cp)
 table.setup(data_vec)
 query_object = table.construct_query_object()
 # number_of_probes = number_of_tables
-number_of_probes = 6000
+# number_of_probes = 6000
+number_of_probes = 50000
 query_object.set_num_probes(number_of_probes)
 K_NEAR = 5
-threshold = 0.48
+threshold = 0.55
 lock = threading.Lock()
 
 for i in range(6):
@@ -101,7 +106,7 @@ def etl_process(keyword):#,es_host,es_port,redis_host,redis_port):
         'query': {
             'bool': {
                 'must': {
-                    'match_phrase': {
+                    'match': {
                         'content': keyword
                     }
                 },
@@ -138,7 +143,9 @@ def etl_process(keyword):#,es_host,es_port,redis_host,redis_port):
                 query_sentences.append(query_row)
                 # query_vec = sif_mod.get_sif_embedding(query_sentences)[0] - cen
                 with lock:
-                    query_vec = sif_mod.get_new_sif_embedding(query_sentences)[0] - cen
+                    # query_vec = sif_mod.get_new_sif_embedding(query_sentences)[0] - cen
+                    query_vec = tfidf_mod.transform(query_sentences).toarray()[0] - cen
+                    # print(np.shape(query_vec))
                     query_res = query_object.find_k_nearest_neighbors(query_vec, K_NEAR)
                 res_vec = data_vec[query_res]
                 res_score = np.dot(res_vec, query_vec) / np.sqrt((res_vec * res_vec).sum(axis=1)) / np.sqrt(
@@ -188,6 +195,8 @@ while True :
     cursor.close()
     sqldb.close()
     threadList = []
+    # t = threading.Thread(target=etl_process,args=("考研",))
+    # threadList.append(t)
     for keyword in keywords:
         t = threading.Thread(target=etl_process,args=(keyword[0],))
         threadList.append(t)

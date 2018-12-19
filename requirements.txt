@@ -1,5 +1,4 @@
 elasticsearch==5.5.2
-PyMySQL==0.7.11
 redis==2.10.6
 pytz==2017.3
 numpy==1.13.3
